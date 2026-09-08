@@ -1,0 +1,24 @@
+[
+  {
+    "name": "post_empty_body",
+    "method": "POST",
+    "path": "/v1/open/orders",
+    "timestamp": 1700000000,
+    "nonce": "abc123",
+    "body": "",
+    "secret": "test_secret",
+    "expected_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "expected_signature": "64ec86bfb3d97321f044b7421cf008917cfb78f627e4373698541293022ab869"
+  },
+  {
+    "name": "get_empty_body",
+    "method": "GET",
+    "path": "/v1/open/orders/123456789",
+    "timestamp": 1700000001,
+    "nonce": "nonce-get-1",
+    "body": "",
+    "secret": "another_secret",
+    "expected_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "expected_signature": "91c3ed25527635f0e6fb53d53a0344a2c2354e86f3a5ce4ef6ece21110428e76"
+  }
+]
