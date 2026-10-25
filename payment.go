@@ -8,7 +8,7 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/nekoimi/solopay-sdk-go/internal/wire"
+	"github.com/nekoimi-labs/solopay-sdk-go/internal/wire"
 )
 
 // CreatePayment creates a SoloPay order and returns the customer-facing

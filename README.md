@@ -7,7 +7,7 @@ SDK 使用 Go 标准库实现，要求 Go 1.22 或更高版本。
 ## 安装
 
 ```bash
-go get github.com/nekoimi/solopay-sdk-go@latest
+go get github.com/nekoimi-labs/solopay-sdk-go@latest
 ```
 
 尚未发布版本标签时，可临时使用 `@master`，或在业务项目的 `go.mod` 中使用本地 `replace`。
@@ -25,7 +25,7 @@ import (
 	"log"
 	"os"
 
-	solopay "github.com/nekoimi/solopay-sdk-go"
+	solopay "github.com/nekoimi-labs/solopay-sdk-go"
 )
 
 func main() {

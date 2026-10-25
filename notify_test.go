@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/nekoimi/solopay-sdk-go/internal/signing"
+	"github.com/nekoimi-labs/solopay-sdk-go/internal/signing"
 )
 
 func signedNotificationRequest(t *testing.T, body []byte, timestamp int64, nonce string) *http.Request {

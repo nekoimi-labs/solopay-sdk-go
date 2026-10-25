@@ -10,7 +10,7 @@ import (
 	"os"
 	"time"
 
-	solopay "github.com/nekoimi/solopay-sdk-go"
+	solopay "github.com/nekoimi-labs/solopay-sdk-go"
 )
 
 func main() {

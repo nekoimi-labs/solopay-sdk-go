@@ -1,3 +1,3 @@
-module github.com/nekoimi/solopay-sdk-go
+module github.com/nekoimi-labs/solopay-sdk-go
 
 go 1.22

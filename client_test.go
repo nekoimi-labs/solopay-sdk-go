@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/nekoimi/solopay-sdk-go/internal/signing"
+	"github.com/nekoimi-labs/solopay-sdk-go/internal/signing"
 )
 
 func newTestClient(t *testing.T, handler http.HandlerFunc) *Client {

@@ -11,8 +11,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/nekoimi/solopay-sdk-go/internal/signing"
-	"github.com/nekoimi/solopay-sdk-go/internal/wire"
+	"github.com/nekoimi-labs/solopay-sdk-go/internal/signing"
+	"github.com/nekoimi-labs/solopay-sdk-go/internal/wire"
 )
 
 var (
