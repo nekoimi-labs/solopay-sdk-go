@@ -31,7 +31,9 @@ jobs:
           go test -race ./...
           go vet ./...
       - name: Package SDK
-        run: bash scripts/package-release.sh "${{ inputs.tag }}"
+        env:
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: bash scripts/package-release.sh "$RELEASE_TAG"
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v3
         with:
