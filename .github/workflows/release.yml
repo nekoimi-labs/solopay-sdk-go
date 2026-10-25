@@ -1,0 +1,44 @@
+name: Release SDK
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing SDK tag (e.g. v0.2.0 or v0.2.0-rc.1)"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out release tag
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag }}
+          fetch-depth: 0
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Verify SDK
+        run: |
+          go test ./...
+          go test -race ./...
+          go vet ./...
+      - name: Package SDK
+        run: bash scripts/package-release.sh "${{ inputs.tag }}"
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ inputs.tag }}
+          generate_release_notes: true
+          prerelease: ${{ contains(inputs.tag, '-') }}
+          fail_on_unmatched_files: true
+          files: |
+            dist/solopay-sdk-go-${{ inputs.tag }}.tar.gz
+            dist/solopay-sdk-go-${{ inputs.tag }}.SHA256SUMS

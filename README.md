@@ -12,6 +12,14 @@ go get github.com/nekoimi-labs/solopay-sdk-go@latest
 
 尚未发布版本标签时，可临时使用 `@master`，或在业务项目的 `go.mod` 中使用本地 `replace`。
 
+正式版本通过 `Release SDK` 的手动 workflow 发布。先提交并推送包含对应 `Version` 的 tag（例如 `v0.2.0`），再在 GitHub Actions 中运行该 workflow；它会重新执行测试、race、vet，生成源码归档和 SHA256 校验文件，并创建 GitHub Release。也可以在本地复现：
+
+```bash
+git tag v0.2.0
+git push origin v0.2.0
+bash scripts/package-release.sh v0.2.0
+```
+
 ## 快速下单
 
 应用的 `app_id` 和密钥应仅保存在业务服务端，不要放进浏览器、App 或小程序。
