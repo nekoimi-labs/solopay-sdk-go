@@ -74,11 +74,8 @@ func TestCreatePayment(t *testing.T) {
 				"out_trade_no":"ORDER-1",
 				"channel_type":"wxpay",
 				"amount_cents":"100",
-				"original_amount_cents":"100",
-				"discount_cents":"0",
-				"match_mode":"confirm_code",
 				"currency":"CNY",
-				"confirm_code":"123456",
+				"idempotent_replay":true,
 				"expire_at":"2026-09-08 15:30:00",
 				"cashier_url":"https://pay.example/cashier/orders/token"
 			}
@@ -95,7 +92,7 @@ func TestCreatePayment(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if payment.OrderID != 42 || payment.CashierURL == "" || payment.AmountCents != 100 {
+	if payment.OrderID != 42 || payment.CashierURL == "" || payment.AmountCents != 100 || !payment.IdempotentReplay {
 		t.Fatalf("unexpected payment: %+v", payment)
 	}
 	if payment.ExpireAt.Location().String() != "UTC+8" {
@@ -112,14 +109,59 @@ func TestGetPaymentByOutTradeNoDoesNotSignQuery(t *testing.T) {
 			t.Fatalf("unexpected URL: %s", request.URL.String())
 		}
 		assertSignedRequest(t, request, nil)
-		_, _ = w.Write([]byte(`{"code":0,"message":"success","data":{"order_id":"42","platform_trade_no":"1","out_trade_no":"ORDER 1","channel_type":"alipay","amount_cents":"99","original_amount_cents":"100","discount_cents":"1","match_mode":"random_discount","currency":"CNY","status":"paid","paid_at":"2026-09-08T07:30:00Z","expire_at":"2026-09-08 15:30:00","created_at":"2026-09-08 15:00:00"}}`))
+		_, _ = w.Write([]byte(`{"code":0,"message":"success","data":{"order_id":"42","platform_trade_no":"1","out_trade_no":"ORDER 1","channel_type":"alipay","amount_cents":"100","currency":"CNY","status":"pending","expire_at":"2026-09-08 15:30:00","created_at":"2026-09-08 15:00:00","cashier_url":"https://pay.example/cashier/orders/token"}}`))
 	})
 	payment, err := client.GetPaymentByOutTradeNo(context.Background(), "ORDER 1")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if payment.Status != PaymentPaid || payment.PaidAt == nil || payment.DiscountCents != 1 {
+	if payment.Status != PaymentPending || payment.AmountCents != 100 || payment.CashierURL != "https://pay.example/cashier/orders/token" {
 		t.Fatalf("unexpected payment: %+v", payment)
+	}
+}
+
+func TestCancelPayment(t *testing.T) {
+	client := newTestClient(t, func(w http.ResponseWriter, request *http.Request) {
+		if request.Method != http.MethodPost || request.URL.Path != "/v1/open/orders/cancel" {
+			t.Fatalf("request = %s %s", request.Method, request.URL.Path)
+		}
+		body, err := io.ReadAll(request.Body)
+		if err != nil {
+			t.Fatal(err)
+		}
+		assertSignedRequest(t, request, body)
+		if string(body) != `{"out_trade_no":"ORDER-1"}` {
+			t.Fatalf("cancel body = %s", body)
+		}
+		_, _ = w.Write([]byte(`{"code":0,"message":"success","data":{"platform_trade_no":"P1","out_trade_no":"ORDER-1","status":"closed"}}`))
+	})
+	result, err := client.CancelPayment(context.Background(), " ORDER-1 ")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.PlatformTradeNo != "P1" || result.OutTradeNo != "ORDER-1" || result.Status != PaymentClosed {
+		t.Fatalf("unexpected cancellation: %+v", result)
+	}
+}
+
+func TestCancelPaymentPreservesAPIError(t *testing.T) {
+	client := newTestClient(t, func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusConflict)
+		_, _ = w.Write([]byte(`{"code":40904,"message":"order is not pending"}`))
+	})
+	_, err := client.CancelOrder(context.Background(), "ORDER-1")
+	var apiErr *APIError
+	if !errors.As(err, &apiErr) || apiErr.Code != 40904 {
+		t.Fatalf("CancelOrder() error = %v, want APIError 40904", err)
+	}
+}
+
+func TestCancelPaymentValidation(t *testing.T) {
+	client := newTestClient(t, func(http.ResponseWriter, *http.Request) {
+		t.Fatal("request must not be sent")
+	})
+	if _, err := client.CancelPayment(context.Background(), " "); err == nil {
+		t.Fatal("expected empty out_trade_no validation error")
 	}
 }
 

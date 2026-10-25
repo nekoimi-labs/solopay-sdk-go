@@ -25,15 +25,10 @@ const (
 	PaymentClosed     PaymentStatus = "closed"
 )
 
-type MatchMode string
-
-const (
-	MatchConfirmCode    MatchMode = "confirm_code"
-	MatchRandomDiscount MatchMode = "random_discount"
-)
-
 // CreatePaymentRequest contains the business fields needed to create a
-// payment. AmountCents uses the currency's smallest unit.
+// payment. AmountCents is the merchant's business order amount in the
+// currency's smallest unit. It is not the actual payment amount when SoloPay
+// applies a random discount.
 type CreatePaymentRequest struct {
 	OutTradeNo     string
 	Channel        Channel
@@ -45,9 +40,9 @@ type CreatePaymentRequest struct {
 	IdempotencyKey string
 }
 
-// Payment is returned by both create and query operations. CashierURL,
-// CashierToken, QRURL and ConfirmCode are normally populated only by the first
-// successful create response.
+// Payment is returned by create and query operations. AmountCents is always
+// the merchant's business order amount. CashierURL can be restored by an
+// idempotent create replay or an order query while the order is pending.
 type Payment struct {
 	IdempotentReplay bool
 	OrderID          int64
@@ -57,12 +52,9 @@ type Payment struct {
 	Status           PaymentStatus
 	Currency         string
 
-	AmountCents         int64
-	OriginalAmountCents int64
-	DiscountCents       int64
+	AmountCents int64
 
 	Subject      string
-	MatchMode    MatchMode
 	ConfirmCode  string
 	CashierURL   string
 	CashierToken string
@@ -73,7 +65,14 @@ type Payment struct {
 	CreatedAt time.Time
 }
 
-var ErrCashierURLUnavailable = errors.New("solopay: cashier URL is unavailable on an idempotent replay")
+var ErrCashierURLUnavailable = errors.New("solopay: cashier URL is unavailable for this payment")
+
+// PaymentCancellation is returned after a merchant requests order cancellation.
+type PaymentCancellation struct {
+	PlatformTradeNo string
+	OutTradeNo      string
+	Status          PaymentStatus
+}
 
 // PaymentURL returns the URL to which the customer should be redirected.
 func (p *Payment) PaymentURL() (string, error) {

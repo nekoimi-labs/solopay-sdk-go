@@ -85,6 +85,39 @@ func (c *Client) GetOrderByOutTradeNo(ctx context.Context, outTradeNo string) (*
 	return c.GetPaymentByOutTradeNo(ctx, outTradeNo)
 }
 
+// CancelPayment cancels a pending payment by the merchant's trade number.
+// SoloPay returns the current status when the order is already closed or expired.
+func (c *Client) CancelPayment(ctx context.Context, outTradeNo string) (*PaymentCancellation, error) {
+	outTradeNo = strings.TrimSpace(outTradeNo)
+	if outTradeNo == "" || len(outTradeNo) > 128 {
+		return nil, &ValidationError{Field: "OutTradeNo", Message: "must contain 1 to 128 characters"}
+	}
+	body, err := json.Marshal(struct {
+		OutTradeNo string `json:"out_trade_no"`
+	}{OutTradeNo: outTradeNo})
+	if err != nil {
+		return nil, fmt.Errorf("solopay: encode cancellation request: %w", err)
+	}
+	var result struct {
+		PlatformTradeNo string `json:"platform_trade_no"`
+		OutTradeNo      string `json:"out_trade_no"`
+		Status          string `json:"status"`
+	}
+	if err := c.do(ctx, http.MethodPost, "/v1/open/orders/cancel", nil, body, "", &result); err != nil {
+		return nil, err
+	}
+	return &PaymentCancellation{
+		PlatformTradeNo: result.PlatformTradeNo,
+		OutTradeNo:      result.OutTradeNo,
+		Status:          PaymentStatus(result.Status),
+	}, nil
+}
+
+// CancelOrder is a compatibility alias for CancelPayment.
+func (c *Client) CancelOrder(ctx context.Context, outTradeNo string) (*PaymentCancellation, error) {
+	return c.CancelPayment(ctx, outTradeNo)
+}
+
 func validateCreatePayment(input CreatePaymentRequest) (CreatePaymentRequest, error) {
 	input.OutTradeNo = strings.TrimSpace(input.OutTradeNo)
 	input.Currency = strings.ToUpper(strings.TrimSpace(input.Currency))
@@ -155,24 +188,21 @@ func (c *Client) paymentFromWire(input wire.Payment) (*Payment, error) {
 		return nil, &DecodeError{HTTPStatus: http.StatusOK, Err: fmt.Errorf("created_at: %w", err)}
 	}
 	return &Payment{
-		IdempotentReplay:    input.IdempotentReplay,
-		OrderID:             input.OrderID,
-		PlatformTradeNo:     input.PlatformTradeNo,
-		OutTradeNo:          input.OutTradeNo,
-		Channel:             Channel(input.ChannelType),
-		Status:              PaymentStatus(input.Status),
-		Currency:            input.Currency,
-		AmountCents:         input.AmountCents,
-		OriginalAmountCents: input.OriginalAmountCents,
-		DiscountCents:       input.DiscountCents,
-		Subject:             input.ProductName,
-		MatchMode:           MatchMode(input.MatchMode),
-		ConfirmCode:         input.ConfirmCode,
-		CashierURL:          input.CashierURL,
-		CashierToken:        input.CashierToken,
-		QRURL:               input.QRURL,
-		ExpireAt:            expireAt,
-		PaidAt:              paidAt,
-		CreatedAt:           createdAt,
+		IdempotentReplay: input.IdempotentReplay,
+		OrderID:          input.OrderID,
+		PlatformTradeNo:  input.PlatformTradeNo,
+		OutTradeNo:       input.OutTradeNo,
+		Channel:          Channel(input.ChannelType),
+		Status:           PaymentStatus(input.Status),
+		Currency:         input.Currency,
+		AmountCents:      input.AmountCents,
+		Subject:          input.ProductName,
+		ConfirmCode:      input.ConfirmCode,
+		CashierURL:       input.CashierURL,
+		CashierToken:     input.CashierToken,
+		QRURL:            input.QRURL,
+		ExpireAt:         expireAt,
+		PaidAt:           paidAt,
+		CreatedAt:        createdAt,
 	}, nil
 }

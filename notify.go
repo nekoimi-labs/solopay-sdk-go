@@ -26,20 +26,17 @@ var (
 // PaymentNotification is the verified payment result sent to a merchant's
 // notify URL.
 type PaymentNotification struct {
-	Event               string
-	PlatformTradeNo     string
-	OutTradeNo          string
-	AppID               string
-	Status              PaymentStatus
-	AmountCents         int64
-	OriginalAmountCents int64
-	DiscountCents       int64
-	MatchMode           MatchMode
-	Currency            string
-	Channel             Channel
-	Subject             string
-	PaidAt              *time.Time
-	NotifyExtra         json.RawMessage
+	Event           string
+	PlatformTradeNo string
+	OutTradeNo      string
+	AppID           string
+	Status          PaymentStatus
+	AmountCents     int64
+	Currency        string
+	Channel         Channel
+	Subject         string
+	PaidAt          *time.Time
+	NotifyExtra     json.RawMessage
 }
 
 // ReplayStore can provide cross-process callback replay protection. Reserve
@@ -166,20 +163,17 @@ func (v *NotifyVerifier) Parse(req *http.Request, rawBody []byte) (*PaymentNotif
 		return nil, fmt.Errorf("solopay: decode notification paid_at: %w", err)
 	}
 	return &PaymentNotification{
-		Event:               payload.Event,
-		PlatformTradeNo:     payload.PlatformTradeNo,
-		OutTradeNo:          payload.OutTradeNo,
-		AppID:               payload.AppID,
-		Status:              PaymentStatus(payload.Status),
-		AmountCents:         payload.AmountCents,
-		OriginalAmountCents: payload.OriginalAmountCents,
-		DiscountCents:       payload.DiscountCents,
-		MatchMode:           MatchMode(payload.MatchMode),
-		Currency:            payload.Currency,
-		Channel:             Channel(payload.ChannelType),
-		Subject:             payload.ProductName,
-		PaidAt:              paidAt,
-		NotifyExtra:         cloneRawMessage(payload.NotifyExtra),
+		Event:           payload.Event,
+		PlatformTradeNo: payload.PlatformTradeNo,
+		OutTradeNo:      payload.OutTradeNo,
+		AppID:           payload.AppID,
+		Status:          PaymentStatus(payload.Status),
+		AmountCents:     payload.AmountCents,
+		Currency:        payload.Currency,
+		Channel:         Channel(payload.ChannelType),
+		Subject:         payload.ProductName,
+		PaidAt:          paidAt,
+		NotifyExtra:     cloneRawMessage(payload.NotifyExtra),
 	}, nil
 }
 

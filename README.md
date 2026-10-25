@@ -72,7 +72,7 @@ http.Redirect(w, r, paymentURL, http.StatusSeeOther)
 
 `CreatePayment` 自动生成 HMAC 请求头。未设置 `IdempotencyKey` 时，SDK 默认使用 `OutTradeNo`，因此超时后可使用完全相同的业务订单号和请求参数重新调用。
 
-> SoloPay 的幂等重放响应不会再次返回收银台 token 或 `cashier_url`。业务系统必须持久化首次下单成功返回的 `CashierURL`；重放时 `PaymentURL()` 会返回 `ErrCashierURLUnavailable`。
+重试时始终使用相同的 `out_trade_no` 和创建参数。只要订单仍为待支付状态，幂等重放会返回原 `cashier_url`；如果无法确认创建请求是否成功，也可以通过业务订单号查询并恢复链接。订单进入终态后不再返回收银台链接，`PaymentURL()` 会返回 `ErrCashierURLUnavailable`。
 
 ## 查询订单
 
@@ -82,14 +82,29 @@ payment, err := client.GetPayment(ctx, "202609080001")
 
 // 或使用业务订单号查询。
 payment, err = client.GetPaymentByOutTradeNo(ctx, "ORDER-20260908-001")
+if err == nil && payment.Status == solopay.PaymentPending {
+	// 创建响应丢失时，可从待支付订单查询结果恢复收银台链接。
+	paymentURL, err := payment.PaymentURL()
+	_ = paymentURL
+}
 
 if err == nil && (payment.Status == solopay.PaymentPaid ||
 	payment.Status == solopay.PaymentManualPaid) {
 	// 处理支付成功；业务侧仍需保证自身处理幂等。
 }
+
+// 未支付前业务订单取消时，同步关闭 SoloPay 订单。
+cancellation, err := client.CancelPayment(ctx, "ORDER-20260908-001")
+if err != nil {
+	// 已支付或已人工确认的订单会返回 *solopay.APIError。
+	log.Printf("cancel payment: %v", err)
+}
+if err == nil {
+	fmt.Println(cancellation.Status)
+}
 ```
 
-请求中的 `AmountCents` 是商品原价。响应中的 `Payment.AmountCents` 是客户实际应付金额；`OriginalAmountCents` 是原价，`DiscountCents` 是优惠金额。
+请求中的 `AmountCents` 是业务订单金额，例如用户应获得的充值额度。响应和回调中的 `Payment.AmountCents` / `PaymentNotification.AmountCents` 与创建请求金额一致；SoloPay 的实付金额、优惠金额和匹配模式不会通过 SDK 暴露。取消待支付订单使用 `CancelPayment(ctx, outTradeNo)`；重复取消返回当前关闭状态，已支付订单返回 `*solopay.APIError`。
 
 ## 错误处理
 

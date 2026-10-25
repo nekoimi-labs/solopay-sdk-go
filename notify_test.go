@@ -28,7 +28,7 @@ func signedNotificationRequest(t *testing.T, body []byte, timestamp int64, nonce
 
 func TestVerifyNotification(t *testing.T) {
 	now := time.Unix(1_700_000_000, 0)
-	body := []byte(`{"event":"payment.paid","platform_trade_no":"P1","out_trade_no":"O1","app_id":"app-test","status":"paid","amount_cents":"100","original_amount_cents":"100","discount_cents":"0","match_mode":"confirm_code","currency":"CNY","channel_type":"wxpay","paid_at":"2026-09-08T07:30:00Z","notify_extra":{"tenant":"one"}}`)
+	body := []byte(`{"event":"payment.paid","platform_trade_no":"P1","out_trade_no":"O1","app_id":"app-test","status":"paid","amount_cents":"1000","currency":"CNY","channel_type":"wxpay","paid_at":"2026-09-08T07:30:00Z","notify_extra":{"tenant":"one"}}`)
 	req := signedNotificationRequest(t, body, now.Unix(), "nonce-1")
 	verifier, err := NewNotifyVerifier(NotifyVerifierConfig{
 		Secret:        "notify-secret",
@@ -44,7 +44,7 @@ func TestVerifyNotification(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if notification.Status != PaymentPaid || notification.AmountCents != 100 || notification.PaidAt == nil {
+	if notification.Status != PaymentPaid || notification.AmountCents != 1000 || notification.PaidAt == nil {
 		t.Fatalf("unexpected notification: %+v", notification)
 	}
 	if _, err := verifier.Parse(req, body); !errors.Is(err, ErrNotifyReplay) {
