@@ -1,4 +1,4 @@
-// Command create-payment creates a SoloPay order and prints its cashier URL.
+// Command create-payment creates or replays a SoloPay order and prints its status.
 package main
 
 import (
@@ -59,9 +59,20 @@ func main() {
 		log.Fatal(err)
 	}
 
-	paymentURL, err := payment.PaymentURL()
-	if err != nil {
-		log.Fatalf("order %s was returned without a cashier URL: %v", payment.PlatformTradeNo, err)
+	fmt.Printf("platform_trade_no=%s\nstatus=%s\nidempotent_replay=%t\n",
+		payment.PlatformTradeNo, payment.Status, payment.IdempotentReplay)
+	switch payment.Status {
+	case solopay.PaymentPending:
+		paymentURL, err := payment.PaymentURL()
+		if err != nil {
+			log.Fatal(err)
+		}
+		fmt.Printf("cashier_url=%s\n", paymentURL)
+	case solopay.PaymentPaid, solopay.PaymentManualPaid:
+		fmt.Println("Order already paid; do not request another payment.")
+	case solopay.PaymentClosed, solopay.PaymentExpired:
+		fmt.Println("Order closed or expired; payment is unavailable.")
+	default:
+		log.Fatalf("unrecognized payment status: %q", payment.Status)
 	}
-	fmt.Printf("platform_trade_no=%s\ncashier_url=%s\n", payment.PlatformTradeNo, paymentURL)
 }

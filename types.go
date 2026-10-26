@@ -41,8 +41,9 @@ type CreatePaymentRequest struct {
 }
 
 // Payment is returned by create and query operations. AmountCents is always
-// the merchant's business order amount. CashierURL can be restored by an
-// idempotent create replay or an order query while the order is pending.
+// the merchant's business order amount. Status includes the current state on
+// create replays, including terminal states. CashierURL can be restored by an
+// idempotent create replay or an order query while pending and unexpired.
 type Payment struct {
 	IdempotentReplay bool
 	OrderID          int64

@@ -59,28 +59,58 @@ func main() {
 		log.Fatal(err)
 	}
 
-	paymentURL, err := payment.PaymentURL()
-	if err != nil {
-		log.Fatal(err)
+	fmt.Println(payment.PlatformTradeNo, payment.Status, payment.IdempotentReplay)
+	switch payment.Status {
+	case solopay.PaymentPending:
+		paymentURL, err := payment.PaymentURL()
+		if err != nil {
+			log.Fatal(err)
+		}
+		fmt.Println(paymentURL)
+	case solopay.PaymentPaid, solopay.PaymentManualPaid:
+		fmt.Println("订单已支付，无需再次付款")
+	case solopay.PaymentClosed, solopay.PaymentExpired:
+		fmt.Println("订单已关闭或过期，无法继续付款")
+	default:
+		log.Fatalf("未知订单状态：%q", payment.Status)
 	}
-	fmt.Println(payment.PlatformTradeNo, paymentURL)
 }
 ```
 
 在 HTTP Handler 中可将客户跳转到收银台：
 
 ```go
-paymentURL, err := payment.PaymentURL()
-if err != nil {
-	http.Error(w, "cashier unavailable", http.StatusBadGateway)
-	return
+switch payment.Status {
+case solopay.PaymentPending:
+	paymentURL, err := payment.PaymentURL()
+	if err != nil {
+		http.Error(w, "cashier unavailable", http.StatusBadGateway)
+		return
+	}
+	http.Redirect(w, r, paymentURL, http.StatusSeeOther)
+case solopay.PaymentPaid, solopay.PaymentManualPaid:
+	// 核对业务金额并幂等处理支付成功，无需再次引导付款。
+	w.WriteHeader(http.StatusNoContent)
+case solopay.PaymentClosed, solopay.PaymentExpired:
+	http.Error(w, "order closed or expired", http.StatusConflict)
+default:
+	http.Error(w, "unknown order status", http.StatusBadGateway)
 }
-http.Redirect(w, r, paymentURL, http.StatusSeeOther)
 ```
 
 `CreatePayment` 自动生成 HMAC 请求头。未设置 `IdempotencyKey` 时，SDK 默认使用 `OutTradeNo`，因此超时后可使用完全相同的业务订单号和请求参数重新调用。
 
-重试时始终使用相同的 `out_trade_no` 和创建参数。只要订单仍为待支付状态，幂等重放会返回原 `cashier_url`；如果无法确认创建请求是否成功，也可以通过业务订单号查询并恢复链接。订单进入终态后不再返回收银台链接，`PaymentURL()` 会返回 `ErrCashierURLUnavailable`。
+`CreatePayment` 和别名 `CreateOrder` 都会填充 `Payment.Status`。首次创建为 `PaymentPending`；通过 `Idempotency-Key` 或 `app_id + out_trade_no` 命中原订单时，返回 `IdempotentReplay: true` 及原订单的当前状态。调用方可直接识别终态，无需为了判断没有链接的原因再查询一次。
+
+| `Payment.Status` | 处理方式 |
+|------------------|----------|
+| `PaymentPending` (`pending`) | 未过期的待支付订单，可打开原收银台链接 |
+| `PaymentPaid` (`paid`) | 已支付，核对金额并幂等处理 |
+| `PaymentManualPaid` (`manual_paid`) | 已人工确认支付，核对金额并幂等处理 |
+| `PaymentClosed` (`closed`) | 已关闭，不再引导付款 |
+| `PaymentExpired` (`expired`) | 已过期，不再引导付款 |
+
+重试时始终使用相同的 `out_trade_no` 和创建参数。只有订单仍为 `pending` 且未过期时，幂等重放才返回与首次创建一致的 `CashierURL` / `CashierToken`；也可通过业务订单号查询恢复链接。已到期、但定时任务尚未更新的 pending 订单在创建重放时返回 `expired`。终态响应省略收银台链接和 Token，`PaymentURL()` 返回 `ErrCashierURLUnavailable`。状态与金额的业务处理仍需保证幂等，并可继续接收支付回调。
 
 ## 查询订单
 

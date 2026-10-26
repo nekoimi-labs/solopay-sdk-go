@@ -11,9 +11,10 @@ import (
 	"github.com/nekoimi-labs/solopay-sdk-go/internal/wire"
 )
 
-// CreatePayment creates a SoloPay order and returns the customer-facing
-// cashier URL. It deliberately does not automatically retry ambiguous network
-// failures; retry with the same request instead.
+// CreatePayment creates or replays a SoloPay order and returns its current Status.
+// CashierURL and CashierToken are only returned while the order is pending and
+// unexpired. A replay may return a terminal status. Ambiguous network failures
+// are not automatically retried; retry with the same request instead.
 func (c *Client) CreatePayment(ctx context.Context, input CreatePaymentRequest) (*Payment, error) {
 	input, err := validateCreatePayment(input)
 	if err != nil {

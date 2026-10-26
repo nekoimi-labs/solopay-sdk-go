@@ -2,6 +2,7 @@ package solopay
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
@@ -75,6 +76,7 @@ func TestCreatePayment(t *testing.T) {
 				"channel_type":"wxpay",
 				"amount_cents":"100",
 				"currency":"CNY",
+				"status":"pending",
 				"idempotent_replay":true,
 				"expire_at":"2026-09-08 15:30:00",
 				"cashier_url":"https://pay.example/cashier/orders/token"
@@ -92,7 +94,7 @@ func TestCreatePayment(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if payment.OrderID != 42 || payment.CashierURL == "" || payment.AmountCents != 100 || !payment.IdempotentReplay {
+	if payment.Status != PaymentPending || payment.OrderID != 42 || payment.CashierURL == "" || payment.AmountCents != 100 || !payment.IdempotentReplay {
 		t.Fatalf("unexpected payment: %+v", payment)
 	}
 	if payment.ExpireAt.Location().String() != "UTC+8" {
@@ -100,6 +102,65 @@ func TestCreatePayment(t *testing.T) {
 	}
 	if got, err := payment.PaymentURL(); err != nil || got != payment.CashierURL {
 		t.Fatalf("PaymentURL() = %q, %v", got, err)
+	}
+}
+
+func TestCreatePaymentAndCreateOrderDecodeCurrentStatus(t *testing.T) {
+	for _, method := range []string{"CreatePayment", "CreateOrder"} {
+		for _, tc := range []struct {
+			name   string
+			status PaymentStatus
+			replay bool
+		}{
+			{"created", PaymentPending, false},
+			{"pending-replay", PaymentPending, true},
+			{"paid-replay", PaymentPaid, true},
+			{"manual-paid-replay", PaymentManualPaid, true},
+			{"closed-replay", PaymentClosed, true},
+			{"expired-replay", PaymentExpired, true},
+		} {
+			t.Run(method+"/"+tc.name, func(t *testing.T) {
+				client := newTestClient(t, func(w http.ResponseWriter, request *http.Request) {
+					if request.Method != http.MethodPost || request.URL.Path != "/v1/open/orders" {
+						t.Fatalf("unexpected create request: %s %s", request.Method, request.URL.Path)
+					}
+					data := map[string]any{
+						"platform_trade_no": "SP202610260001", "out_trade_no": "ORDER-001",
+						"channel_type": "wxpay", "amount_cents": "10000", "currency": "CNY",
+						"status": tc.status, "idempotent_replay": tc.replay,
+					}
+					if tc.status == PaymentPending {
+						data["cashier_url"] = "https://pay.example/cashier/orders/token"
+						data["cashier_token"] = "token"
+					}
+					if err := json.NewEncoder(w).Encode(map[string]any{"code": 0, "message": "success", "data": data}); err != nil {
+						t.Error(err)
+					}
+				})
+				create := client.CreatePayment
+				if method == "CreateOrder" {
+					create = client.CreateOrder
+				}
+				payment, err := create(context.Background(), CreatePaymentRequest{
+					OutTradeNo: "ORDER-001", Channel: WeChatPay, AmountCents: 10000,
+					NotifyURL: "https://merchant.example/notify",
+				})
+				if err != nil {
+					t.Fatal(err)
+				}
+				if payment.Status != tc.status || payment.IdempotentReplay != tc.replay || payment.AmountCents != 10000 {
+					t.Fatalf("incorrectly decoded create response: %+v", payment)
+				}
+				paymentURL, err := payment.PaymentURL()
+				if tc.status == PaymentPending {
+					if err != nil || paymentURL != "https://pay.example/cashier/orders/token" || payment.CashierToken != "token" {
+						t.Fatalf("pending credentials = %q, %q, %v", paymentURL, payment.CashierToken, err)
+					}
+				} else if !errors.Is(err, ErrCashierURLUnavailable) || payment.CashierURL != "" || payment.CashierToken != "" {
+					t.Fatalf("terminal order has cashier credentials: %+v, %v", payment, err)
+				}
+			})
+		}
 	}
 }
 
